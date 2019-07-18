@@ -7,12 +7,28 @@ var sassMiddleware = require('node-sass-middleware');
 
 var indexRouter = require('./server/routes/index');
 var usersRouter = require('./server/routes/users');
+var comments = require('./server/controllers/comments');
+
+// ODM with Mongoose
+var mongoose = require('mongoose');
+// Session Management
+var session = require('express-session');
+var MongoStore = require('connect-mongo')(session);
+// Passport and Flash Messages
+var passport = require('passport');
+var flash = require('connect-flash');
 
 var app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'server/views/pages'));
 app.set('view engine', 'ejs');
+
+var config = require('./server/config/config.js');
+// connect to database
+mongoose.connection.on('error', function() {
+  console.error('MongoDB Connection Error. Make sure MongoDB is running.');
+});
 
 app.use(logger('dev'));
 app.use(express.json());
@@ -26,8 +42,30 @@ app.use(sassMiddleware({
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Set secret for session and some setting for passport
+app.use(session({
+  secret: 'acaajsjafjrifslffjjafaff484848',
+  saveUninitialized: true,
+  resave: true,
+  // store session on MongoDB using express-session and connect-mongo
+  store: new MongoStore({
+      url: config.url,
+      collection: 'sessions'
+  })
+}));
+
+// Init passport authentication
+app.use(passport.initialize());
+// persistent login sessions
+app.use(passport.session());
+// flash messages
+app.use(flash());
+require('./server/config/pass.js')(passport);
+
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.get('/comments', comments.hasAuthorization, comments.list);
+app.post('/comments', comments.hasAuthorization, comments.create);
 
 
 // catch 404 and forward to error handler
